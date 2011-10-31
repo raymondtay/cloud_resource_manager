@@ -34,7 +34,7 @@ public class CreateVmBuilder {
 		}
 
 		// its either i do this computation in the 
-		// ResourceBuilder class or over here 
+		// MachineBuilder class or over here 
 		// though i think it being here makes more sense
 		private Disk getBootDiskType(Vector<Disk> disks) {
 			Disk boot = null;
@@ -61,12 +61,12 @@ public class CreateVmBuilder {
 		}
 
 		public Vector<String> buildCommandString(DomHelper.TIER_TYPE tier) {
-			Vector<Resource> resources = dom.getResourceData(tier);
+			Vector<Machine> machines = dom.getMachineData(tier);
 			Vector<String> commandStrings = new Vector<String>();
 			Disk bootD = null;
 			StringBuilder disks = new StringBuilder();
 			StringBuilder apps = new StringBuilder();
-			for(Resource r : resources) {
+			for(Machine r : machines) {
 				cores.setAttribute("cores", r.getCores());
 				memory.setAttribute("memory", r.getMemory());
 				bootDisk.setAttribute("type", (bootD = getBootDiskType(r.getDisks())).getType());
@@ -87,7 +87,8 @@ public class CreateVmBuilder {
 					apps.append(a.getId() + "+" );
 				}
 				String temp = apps.toString();
-				app.setAttribute("app", temp.substring(0, temp.length()-1)); // this is sooooo like C programming...really clumsy
+				if (temp.length() > 0) // take into account no apps are installed during provisioning
+					app.setAttribute("app", temp.substring(0, temp.length()-1)); // this is sooooo like C programming...really clumsy
 				commandStrings.add(cores.toString() + memory.toString() + bootDisk.toString() + disks.toString() + os.toString() + app.toString() + zone.toString() + start.toString() + duration.toString());
 				reset();
 			}

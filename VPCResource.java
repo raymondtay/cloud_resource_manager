@@ -189,6 +189,9 @@ public class VPCResource extends ServerResource {
 
 		// The HTTP OK will be returned to signify that the reservation
 		// request to MOAB has been issued w/o faults. *fingers crossed*
+		HashMap attr = new HashMap<String, Object>();
+		attr.put("project_id", id);
+		getResponse().setAttributes(attr);
 		getResponse().setStatus(Status.SUCCESS_OK);
 	}
 

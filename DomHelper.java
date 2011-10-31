@@ -33,9 +33,9 @@ public class DomHelper {
 		private XPath xpath;
 
 		// Each nodelist will be set in a lazy fashion and returned 
-		private Vector<Resource> resourcesWeb;
-		private Vector<Resource> resourcesApp;
-		private Vector<Resource> resourcesDB;
+		private Vector<Machine> machinesWeb;
+		private Vector<Machine> machinesApp;
+		private Vector<Machine> machinesDB;
 
 		private NodeList firewallWeb;
 		private NodeList firewallApp;
@@ -66,15 +66,15 @@ public class DomHelper {
 			try {	
 				switch(type) {
 					case WEB: 
-						expr = xpath.compile("/configuration/compartmentWeb/firewall");
+						expr = xpath.compile("/system/compartment-web/firewall");
 						l = (NodeList)expr.evaluate(this.xmlDoc, XPathConstants.NODESET);
 						break;
 					case APP: 
-						expr = xpath.compile("/configuration/compartmentApp/firewall");
+						expr = xpath.compile("/system/compartment-app/firewall");
 						l = (NodeList)expr.evaluate(this.xmlDoc, XPathConstants.NODESET);
 						break;
 					case DB: 
-						expr = xpath.compile("/configuration/compartmentDB/firewall");
+						expr = xpath.compile("/system/compartment-db/firewall");
 						l = (NodeList)expr.evaluate(this.xmlDoc, XPathConstants.NODESET);
 						break;
 				}
@@ -85,31 +85,32 @@ public class DomHelper {
 		/**
 		 * Internal method. Returns list of nodes depending which "tier" it wants
 		 */
-		private Vector<Resource> mineResourceData(TIER_TYPE type) {
+		private Vector<Machine> mineResourceData(TIER_TYPE type) {
 			XPathExpression expr = null;
 			NodeList list = null;
-			Vector<Resource> data = new Vector<Resource>();
+			Vector<Machine> data = new Vector<Machine>();
 			try {	
 				switch (type) {
 					case WEB: 
-						expr = xpath.compile("/configuration/compartmentWeb/resources/resource");
+						expr = xpath.compile("/system/compartment-web/machines/machine");
 						list = (NodeList)expr.evaluate(this.xmlDoc, XPathConstants.NODESET);
 						xpath.reset();
 						break;
 					case APP: 
-						expr = xpath.compile("/configuration/compartmentApp/resources/resource");
+						expr = xpath.compile("/system/compartment-app/machines/machine");
 						list = (NodeList)expr.evaluate(this.xmlDoc, XPathConstants.NODESET);
 						xpath.reset();
 						break;
 					case DB: 
-						expr = xpath.compile("/configuration/compartmentDB/resources/resource");
+						expr = xpath.compile("/system/compartment-db/machines/machine");
 						list = (NodeList)expr.evaluate(this.xmlDoc, XPathConstants.NODESET);
 						xpath.reset();
 						break;
 				}
 			} catch (Exception e) { e.printStackTrace(); }
 
-			// mine the returned data, stuff container with a bunch of "Resource" types
+			// mine the returned data, stuff container with a bunch of "Machine" types as in the
+			// XML
 				
 			for( int i = 0; i < list.getLength(); ++i ) {
 				Node resourceNode = list.item(i);
@@ -118,26 +119,28 @@ public class DomHelper {
 				Vector<Application> apps = new Vector<Application>();
 
 				try{	
-
+					String machineId = (String) localxpath.evaluate("id/text()", resourceNode, XPathConstants.STRING);
 					String machineType = (String) localxpath.evaluate("type/text()", resourceNode, XPathConstants.STRING);
 					System.out.println("Machine: " + machineType);
-					int cores = Integer.parseInt( (String) localxpath.evaluate("cores/text()", resourceNode, XPathConstants.STRING) );
+					int cores = Integer.parseInt( (String) localxpath.evaluate("cpu-core/text()", resourceNode, XPathConstants.STRING) );
 					System.out.println("Cores: " + cores);
 					long memory = Long.parseLong( (String) localxpath.evaluate("memory/text()", resourceNode, XPathConstants.STRING) );
 					System.out.println("Memory: " + memory);
 					String os = (String) localxpath.evaluate("os/text()", resourceNode, XPathConstants.STRING);
+					String ip = (String) localxpath.evaluate("ext-ip-address/text()", resourceNode, XPathConstants.STRING);
 					NodeList diskNodes = (NodeList) localxpath.evaluate("disks/disk", resourceNode, XPathConstants.NODESET);
 					NodeList applicationNodes = (NodeList) localxpath.evaluate("applications/application", resourceNode, XPathConstants.NODESET);
 
 					for( int j = 0; j < diskNodes.getLength(); ++j ) {
 						Node disk = diskNodes.item(j);
 
+						String diskId = (String) localxpath.evaluate("id/text()", disk, XPathConstants.STRING);
 						String diskType = (String) localxpath.evaluate("type/text()", disk, XPathConstants.STRING);
 						long diskSize = Long.parseLong( (String) localxpath.evaluate("size/text()", disk, XPathConstants.STRING) );
 						boolean isBootDisk = (Boolean) localxpath.evaluate("boot/text()", disk, XPathConstants.BOOLEAN); // nice thing about XPath is that if a node is absent, no errors are returned .. rather the default value for the converted type is returned. Hooray!
 
 						// using the builder pattern, we construct the new disk and add it to the container
-						Disk newdisk = new DiskBuilder().setType(diskType).setSize(diskSize).setBootDisk(isBootDisk).build();
+						Disk newdisk = new DiskBuilder().setId(diskId).setType(diskType).setSize(diskSize).setBootDisk(isBootDisk).build();
 						disks.add(newdisk);
 						System.out.println("DISK: " + diskType + "," + diskSize +", " + isBootDisk);
 					}
@@ -145,7 +148,7 @@ public class DomHelper {
 					for( int j = 0; j < applicationNodes.getLength(); ++j ) {
 						Node appNode = applicationNodes.item(j);
 
-						String id = (String) localxpath.evaluate("id/text()", appNode, XPathConstants.STRING);
+						String id = appNode.getTextContent() ;
 						Application newapp = new ApplicationBuilder().setId(id).build();
 						apps.add(newapp);
 					}
@@ -155,15 +158,17 @@ public class DomHelper {
 					 * and we'll build up the structure for the resource and add it to the container and pass
 					 * it back to the requester
 					 */
-					Resource newResource = new ResourceBuilder()
-							.setMachineType(machineType)
+					Machine newMachine = new MachineBuilder()
+							.setId(machineId)
+							.setExtIPAddr(ip)
+							.setType(machineType)
 							.setCores(cores)
 							.setMemory(memory)
 							.setDisks(disks)
 							.setOS(os)
 							.setApps(apps)
 							.build();
-					data.add(newResource);
+					data.add(newMachine);
 				} catch (XPathExpressionException e) {e.printStackTrace();}
 
 			}
@@ -179,15 +184,15 @@ public class DomHelper {
 			try {	
 				switch (type) {
 					case WEB: 
-						expr = xpath.compile("/configuration/compartmentWeb/loadbalancer");
+						expr = xpath.compile("/system/compartment-web/load-balancer");
 						l = (NodeList)expr.evaluate(this.xmlDoc, XPathConstants.NODESET);
 						break;
 					case APP: 
-						expr = xpath.compile("/configuration/compartmentApp/loadbalancer");
+						expr = xpath.compile("/system/compartment-app/load-balancer");
 						l = (NodeList)expr.evaluate(this.xmlDoc, XPathConstants.NODESET);
 						break;
 					case DB: 
-						expr = xpath.compile("/configuration/compartmentDB/loadbalancer");
+						expr = xpath.compile("/system/compartment-db/load-balancer");
 						l = (NodeList)expr.evaluate(this.xmlDoc, XPathConstants.NODESET);
 						break;
 				}
@@ -204,15 +209,15 @@ public class DomHelper {
 			try {	
 				switch (type) {
 					case WEB: 
-						expr = xpath.compile("/configuration/compartmentWeb/zone/text()");
+						expr = xpath.compile("/system/compartment-web/zone/text()");
 						s = (String)expr.evaluate(this.xmlDoc, XPathConstants.STRING);
 						break;
 					case APP: 
-						expr = xpath.compile("/configuration/compartmentApp/zone/text()");
+						expr = xpath.compile("/system/compartment-app/zone/text()");
 						s = (String)expr.evaluate(this.xmlDoc, XPathConstants.STRING);
 						break;
 					case DB: 
-						expr = xpath.compile("/configuration/compartmentDB/zone/text()");
+						expr = xpath.compile("/system/compartment-db/zone/text()");
 						s = (String)expr.evaluate(this.xmlDoc, XPathConstants.STRING);
 						break;
 				}
@@ -236,11 +241,11 @@ public class DomHelper {
 		/**
 		 * Returns a DOM where the root node is tagged by "resources"
 		 */
-		public Vector<Resource> getResourceData(TIER_TYPE type) {
+		public Vector<Machine> getMachineData(TIER_TYPE type) {
 			switch (type) {
-				case WEB: if (this.resourcesWeb != null) return this.resourcesWeb;else { this.resourcesWeb = mineResourceData(TIER_TYPE.WEB); return this.resourcesWeb; } 	
-				case APP: if (this.resourcesApp != null) return this.resourcesApp;else { this.resourcesApp = mineResourceData(TIER_TYPE.APP); return this.resourcesApp; }
-				case DB : if (this.resourcesDB != null) return this.resourcesDB;  else { this.resourcesDB = mineResourceData(TIER_TYPE.DB); return this.resourcesDB; }
+				case WEB: if (this.machinesWeb != null) return this.machinesWeb;else { this.machinesWeb = mineResourceData(TIER_TYPE.WEB); return this.machinesWeb; } 	
+				case APP: if (this.machinesApp != null) return this.machinesApp;else { this.machinesApp = mineResourceData(TIER_TYPE.APP); return this.machinesApp; }
+				case DB : if (this.machinesDB != null) return this.machinesDB;  else { this.machinesDB = mineResourceData(TIER_TYPE.DB); return this.machinesDB; }
 			    default: return null;	
 			}
 		}
@@ -285,23 +290,28 @@ class Disk {
 	private String type;
 	private long size;
 	private boolean bootDisk;
+	private String diskId;
 
 	/**
 	 * Builds the Java object based on the info in
 	 * <disk>
+	 *  <id>disk-0</id> // <- attribute added on 31 oct'2011
 	 * 	<type>1</type>
 	 * 	<size>3</size>
 	 * 	<boot>5</boot>
 	 * </disk>
 	 */
 	public Disk(DiskBuilder diskBuilder) {
-		this.type = diskBuilder.getType();
-		this.size = diskBuilder.getSize();
+		this.type     = diskBuilder.getType();
+		this.size     = diskBuilder.getSize();
 		this.bootDisk = diskBuilder.getBootDisk();
+		this.diskId   = diskBuilder.getDiskId();
 	}
 	public String getType() {return this.type;}
 	public long getSize() {return this.size;}
 	public boolean getBootDisk() {return this.bootDisk;}
+	public String getDiskId() { return this.diskId; }
+
 	public void setType(String type) {
 		this.type = type;
 	}
@@ -311,16 +321,20 @@ class Disk {
 	public void setBootDisk(boolean bootDisk) {
 		this.bootDisk = bootDisk;
 	}
-
+	public void setId(String diskId) {
+		this.diskId = diskId;
+	}
 }
 class DiskBuilder {
 	private String type;
 	private long size;
 	private boolean bootDisk;
+	private String diskId;
 	
 	public String getType() {return this.type;}
 	public long getSize() {return this.size;}
 	public boolean getBootDisk() {return this.bootDisk;}
+	public String getDiskId() { return this.diskId; }
 
 	public DiskBuilder setType(String type) {
 		this.type = type;
@@ -332,6 +346,10 @@ class DiskBuilder {
 	}
 	public DiskBuilder setBootDisk(boolean bootDisk) {
 		this.bootDisk = bootDisk;
+		return this;
+	}
+	public DiskBuilder setId(String diskId) {
+		this.diskId = diskId;
 		return this;
 	}
 	public Disk build() {
@@ -347,7 +365,7 @@ class Application{
 	/**
 	 * Builds the Java object based on the info in the XML
 	 * <application>
-	 * 	<id>IIS75</id>
+	 * 	IIS7
 	 * </application>
 	 */
 	public Application(ApplicationBuilder builder) {
@@ -362,21 +380,25 @@ class ApplicationBuilder {
 	public Application build() { return new Application(this); }
 }
 
-class Resource {
-	private String machineType;
+class Machine {
+	private String id;
+	private String type;
 	private int	processingCores; // integer should be fine for the forseeable future unless sizeof(cpus in cloud) > 2^32
 	private long memory; // not really realistic since its possible that we'll have more than 2^64
 	private Vector<Disk> disks;
 	private String os;	// operating system name
 	private Vector<Application> applications;	
+	private String externalIP;
 
 	/**
 	 * Builds the Java object based on the info in the XML
-	 * <Resource>
-	 * 	<Resource>
+	 * <machines>
+	 * 	<machine>
+	 * 	    <id>vm-0</id>
 	 * 		<type>VM</type>
-	 * 		<cores>3</cores>
+	 * 		<cpu-core>3</cpu-core>
 	 * 		<memory>5</memory>
+	 * 		<ext-ip-address>202.146.255.1</ext-ip-address>
 	 *		<disks>
 	 *		 	<disk>
 	 * 				<type>1</type>
@@ -388,61 +410,72 @@ class Resource {
 	 * 		<os>LINUX</os>
 	 * 		<applications>
 	 * 			<application>
-	 * 				<id>IIS</id
+	 * 				IIS
 	 * 			</application>
 	 * 			<application>
-	 * 				<id>Oracle 11G</id
+	 * 				Oracle 11G
 	 * 			</application>
 	 * 			...
 	 * 		</applications>
-	 * 	</Resource>
-	 * </Resource>
+	 * 	</machine>
+	 * </machines>
 	 */
-	public Resource(ResourceBuilder builder) {
-		this.machineType = builder.getMachineType();
+	public Machine(MachineBuilder builder) {
+		this.id = builder.getId();
+		this.type = builder.getType();
 		this.processingCores = builder.getCores();
 		this.memory = builder.getMemory();
 		this.disks = builder.getDisks();
 		this.os = builder.getOS();
 		this.applications = builder.getApps();
+		this.externalIP = builder.getExtIPAddr();
 	}
-	public String getMachineType() { return this.machineType; }
+	public String getId() { return this.id; }
+	public String getType() { return this.type; }
 	public int getCores() { return this.processingCores; }
 	public long getMemory() { return this.memory; }
 	public Vector<Disk> getDisks() { return this.disks; }
 	public String getOS() { return this.os ; }
 	public Vector<Application> getApps() { return this.applications; }
+	public String getExtIPAddr() { return this.externalIP; }
 
-	public void setMachineType(String type) { this.machineType = type;}
+	public void setType(String type) { this.type = type;}
+	public void setId(String id) { this.id = id; }
 	public void setCores(int processingCores) { this.processingCores = processingCores; }
 	public void setMemory(long memory) { this.memory = memory; }
 	public void setDisks(Vector<Disk> disks) { this.disks = disks; }
 	public void setOS(String os) { this.os = os; }
 	public void setApps(Vector<Application> applications) { this.applications = applications; }
-
+	public void setExtIPAddr(String ip) { this.externalIP = ip; }
 }
-class ResourceBuilder {
-	private String machineType;
+class MachineBuilder {
+	private String id;
+	private String type;
 	private int	processingCores; // integer should be fine for the forseeable future unless sizeof(cpus in cloud) > 2^32
 	private long memory; // not really realistic since its possible that we'll have more than 2^64
 	private Vector<Disk> disks;
 	private String os;	// operating system name
 	private Vector<Application> applications;	
+	private String externalIP;
 
-	public String getMachineType() { return this.machineType; }
+	public String getId() { return this.id; }
+	public String getType() { return this.type; }
 	public int getCores() { return this.processingCores; }
 	public long getMemory() { return this.memory; }
 	public Vector<Disk> getDisks() { return this.disks; }
 	public String getOS() { return this.os ; }
 	public Vector<Application> getApps() { return this.applications; }
+	public String getExtIPAddr() { return this.externalIP; }
 
-	public ResourceBuilder setMachineType(String type) { this.machineType = type; return this; }
-	public ResourceBuilder setCores(int processingCores) { this.processingCores = processingCores; return this; }
-	public ResourceBuilder setMemory(long memory) { this.memory = memory; return this; }
-	public ResourceBuilder setDisks(Vector<Disk> disks) { this.disks = disks; return this; }
-	public ResourceBuilder setOS(String os) { this.os = os; return this; }
-	public ResourceBuilder setApps(Vector<Application> applications) { this.applications = applications; return this; }
+	public MachineBuilder setId(String id) { this.id = id; return this; }
+	public MachineBuilder setType(String type) { this.type = type; return this; }
+	public MachineBuilder setCores(int processingCores) { this.processingCores = processingCores; return this; }
+	public MachineBuilder setMemory(long memory) { this.memory = memory; return this; }
+	public MachineBuilder setDisks(Vector<Disk> disks) { this.disks = disks; return this; }
+	public MachineBuilder setOS(String os) { this.os = os; return this; }
+	public MachineBuilder setApps(Vector<Application> applications) { this.applications = applications; return this; }
+	public MachineBuilder setExtIPAddr(String ip) { this.externalIP = ip; return this; }
 
-	public Resource build() { return new Resource(this); }
+	public Machine build() { return new Machine(this); }
 }
 
