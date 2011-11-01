@@ -25,6 +25,8 @@ public class ResourceManager extends Application {
 		public Restlet createInboundRoot() {
 			Router router = new Router(getContext());
 			router.attach("http://localhost:8111/vpc/{project_id}/request/", VPCResource.class);
+			router.attach("http://localhost:8111/vpc/{project_id}/config/", VPCResource.class);
+			router.attach("http://localhost:8111/vpc/{project_id}/status/", Diagnostic.class);
 			return router;
 		}
 }

@@ -70,6 +70,7 @@ public class VPCResource extends ServerResource {
 
 		if (cursor.hasNext()) { // expecting to find just 1 document
 			project = (BasicDBObject)cursor.next();
+			
 			// get the XML file
 			DocumentBuilderFactory fac = DocumentBuilderFactory.newInstance();
 			DocumentBuilder builder = fac.newDocumentBuilder();
@@ -78,7 +79,7 @@ public class VPCResource extends ServerResource {
 			// there's an error here likely, the client should know
 			// with a more descriptive message since we're in the
 			// pre-production stage
-			getResponse().setStatus(Status.CLIENT_ERROR_NOT_FOUND, "The passed in project_id=" + id + " does not exist" + 
+			getResponse().setStatus(org.restlet.data.Status.CLIENT_ERROR_NOT_FOUND, "The passed in project_id=" + id + " does not exist" + 
 							" OR you must have missed the project_id you've passed in u twit");
 			getLogger().log(Level.WARNING, "REQ_VPC_CONFIG => PROJECT ID:" + id + " does not exist in the database");
 		}	
@@ -110,7 +111,7 @@ public class VPCResource extends ServerResource {
 		} catch (IOException ioe) { 
 			ioe.printStackTrace(); 
 			// the twit passed in a non-conforming xml, return error
-			getResponse().setStatus(Status.CLIENT_ERROR_BAD_REQUEST, "You tried to fool me with a wrong XML. Bad bad bad");
+			getResponse().setStatus(org.restlet.data.Status.CLIENT_ERROR_BAD_REQUEST, "You tried to fool me with a wrong XML. Bad bad bad");
 			getLogger().log(Level.WARNING, "REQ_VPC_PROVISION => PROJECT ID:" + (String)getRequestAttributes().get("project_id") + " has a malformed XML");
 		} 
 
@@ -145,7 +146,7 @@ public class VPCResource extends ServerResource {
 			STATUS isCorrect = validateVPCChanges(all, newXml);
 
 			if (isCorrect == STATUS.FAIL) 
-					getResponse().setStatus(Status.CLIENT_ERROR_CONFLICT);
+					getResponse().setStatus(org.restlet.data.Status.CLIENT_ERROR_CONFLICT);
 
 			HashMap<java.lang.String, org.w3c.dom.Node> map = new HashMap<String, Node> ();
 			updateVPCAsync(id, map);
@@ -192,7 +193,7 @@ public class VPCResource extends ServerResource {
 		HashMap attr = new HashMap<String, Object>();
 		attr.put("project_id", id);
 		getResponse().setAttributes(attr);
-		getResponse().setStatus(Status.SUCCESS_OK);
+		getResponse().setStatus(org.restlet.data.Status.SUCCESS_OK);
 	}
 
 	/**
