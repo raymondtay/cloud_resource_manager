@@ -222,7 +222,7 @@ class StatusTask implements Callable< Vector<String> > {
 	}
 	@Override
 	public Vector<String> call() throws Exception {
-		ProcessBuilder pb = new ProcessBuilder("./getvminfo.sh", vpcId);
+		ProcessBuilder pb = new ProcessBuilder("./getvmstatus.sh", " -n " + vpcId);
 		Process proc = pb.start();	
 
 		BufferedInputStream bis = new BufferedInputStream(proc.getInputStream());

@@ -1,5 +1,6 @@
 // JDK refs.
 import java.util.*;
+import java.util.concurrent.*;
 import java.io.*;
 import java.util.logging.*;
 import javax.xml.parsers.*;
@@ -296,7 +297,9 @@ public class VPCResource extends ServerResource {
 	 * from serving other incoming requests.
 	 * 
 	 * The invocation of MOAB commands to make the reservation/
-	 * provision is based on tiers. 
+	 * provision is based on tiers. This expects the provisioning
+	 * to complete within 3 minutes else a timeout occurs
+	 *
 	 * @param OID - MOAB reservation id
 	 * @param projectId - project's identification string
 	 * @return the MOAB id or 0 for failure
@@ -304,6 +307,7 @@ public class VPCResource extends ServerResource {
 	private ArrayList executeReservation(DomHelper.TIER_TYPE type, org.w3c.dom.Document xml) {
 		Document xmlDoc = null;
 		ArrayList ids = new ArrayList();
+		ArrayList< Callable<String> > tasks = new ArrayList< Callable<String> >();
 		switch (type) {
 				case WEB:	
 				case APP:	
@@ -316,32 +320,15 @@ public class VPCResource extends ServerResource {
 						// commandStrings - contains a list of command Strings for firing in MOAB
 						Vector<String> commandStrings = vmBuilder.getCommandStrings();
 						for( String args : commandStrings) {
-							ProcessBuilder pb = new ProcessBuilder("./createvm.sh", args);
-	
-							// we can put in any ENV variables we want the shell script to understand
-							Process proc = pb.start();	
-							BufferedInputStream bis = new BufferedInputStream(proc.getInputStream());
-							byte[] data = new byte[1024]; // TODO: bad idea to have static arrays.
-							bis.read(data, 0, 1023);
-							id = (new String(data)).trim(); // this trimming is necessary otherwise you'll get the "Content not allowed in trailing section."
-							DocumentBuilderFactory fac = DocumentBuilderFactory.newInstance();
-							DocumentBuilder builder = fac.newDocumentBuilder();
-							getLogger().log(Level.INFO, args);
-							xmlDoc = builder.parse(new ByteArrayInputStream(id.getBytes()));  
-							XPath xpath = XPathFactory.newInstance().newXPath();
-							String status = (String) xpath.evaluate("//request/status/text()", xmlDoc, XPathConstants.STRING);
-							if ( status.equalsIgnoreCase("ok") ) 
-								id = (String) xpath.evaluate("//request/id/text()", xmlDoc, XPathConstants.STRING);
-							else id = "0"; 
-
-							ids.add(id);
-							proc.destroy();
+							tasks.add(new ProvisionVMTask(args));
 						}
-					} 
-					catch (IOException ioe) { ioe.printStackTrace(); }
-					catch (SAXException saxe) { saxe.printStackTrace(); }
-					catch (ParserConfigurationException configE) { configE.printStackTrace(); }
-					catch (XPathExpressionException xpathe) { xpathe.printStackTrace(); }
+						List<Future> results = getApplication().getTaskService().invokeAll(tasks);
+						for( Future result : results ) {
+							ids.add( result.get(3, TimeUnit.MINUTES) );
+						}
+					} catch (InterruptedException ie ) { ie.printStackTrace(); }
+					  catch (ExecutionException ee)    { ee.printStackTrace(); }
+					  catch (TimeoutException te)    { te.printStackTrace(); }
 		}
 		return ids;
 	}
@@ -370,3 +357,40 @@ public class VPCResource extends ServerResource {
 	}
 
 }
+
+/**
+ * This task represents the call to the OO
+ * via the "createvm.sh" script with accepting parameters
+ */
+class ProvisionVMTask implements Callable<String>  {
+	private String args;
+	private String id;
+	protected ProvisionVMTask(String args) {
+		this.args = args;
+		this.id = "";
+	}	
+	@Override
+	public String call() throws Exception {
+		ProcessBuilder pb = new ProcessBuilder("./createvm.sh", args);
+	
+		// we can put in any ENV variables we want the shell script to understand
+		Process proc = pb.start();	
+		BufferedInputStream bis = new BufferedInputStream(proc.getInputStream());
+		byte[] data = new byte[1024]; // TODO: bad idea to have static arrays.
+		bis.read(data, 0, 1023);
+		id = (new String(data)).trim(); // this trimming is necessary otherwise you'll get the "Content not allowed in trailing section."
+		DocumentBuilderFactory fac = DocumentBuilderFactory.newInstance();
+		DocumentBuilder builder = fac.newDocumentBuilder();
+		Document xmlDoc = builder.parse(new ByteArrayInputStream(id.getBytes()));  
+		XPath xpath = XPathFactory.newInstance().newXPath();
+		String status = (String) xpath.evaluate("//request/status/text()", xmlDoc, XPathConstants.STRING);
+		if ( status.equalsIgnoreCase("ok") ) 
+			id = (String) xpath.evaluate("//request/id/text()", xmlDoc, XPathConstants.STRING);
+		else id = "0"; 
+
+		proc.destroy();
+
+		return id;
+	}
+}
+
