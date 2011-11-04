@@ -1,4 +1,5 @@
 import java.util.*;
+import java.text.*;
 
 import org.antlr.stringtemplate.*;
 
@@ -29,11 +30,13 @@ public class CreateVmBuilder {
 		private DomHelper dom;
 		private DomHelper.TIER_TYPE tier;
 		private String projectId;
+		private Format formatter;
 
 		public CreateVmBuilder(DomHelper dom, String projectId, DomHelper.TIER_TYPE tier) {
 			this.dom = dom;
 			this.tier = tier;
 			this.projectId = projectId;
+			this.formatter = new SimpleDateFormat("HH:mm:ss_MM/dd/yyyy");
 		}
 
 		// its either i do this computation in the 
@@ -78,7 +81,7 @@ public class CreateVmBuilder {
 				bootDisk.setAttribute("size", bootD.getSize());
 				os.setAttribute("os", r.getOS());
 				zone.setAttribute("zone", dom.getZoneData(tier));
-				start.setAttribute("starttime", new java.util.Date());
+				start.setAttribute("starttime", formatter.format(new java.util.Date()));
 				duration.setAttribute("duration", new java.util.Date());
 				for( Disk d : r.getDisks()) {
 					if (!d.getBootDisk()) {
@@ -89,7 +92,9 @@ public class CreateVmBuilder {
 					}
 				}
 				for( Application a : r.getApps()) {
-					apps.append(a.getId() + "+" );
+					app.setAttribute("app", a.getId());
+					apps.append(app.toString());
+					app.reset();
 				}
 				String temp = apps.toString();
 				if (temp.length() > 0) // take into account no apps are installed during provisioning
