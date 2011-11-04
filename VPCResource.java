@@ -176,9 +176,9 @@ public class VPCResource extends ServerResource {
 
 			// We'll fire the actual reservation here
 			// Update the database if applicable 
-			ArrayList webMoabIds = executeReservation(DomHelper.TIER_TYPE.WEB, passedinXml);
-			ArrayList appMoabIds = executeReservation(DomHelper.TIER_TYPE.APP, passedinXml);
-			ArrayList dbMoabIds = executeReservation(DomHelper.TIER_TYPE.DB, passedinXml);
+			ArrayList webMoabIds = executeReservation(DomHelper.TIER_TYPE.WEB, id, passedinXml);
+			ArrayList appMoabIds = executeReservation(DomHelper.TIER_TYPE.APP, id, passedinXml);
+			ArrayList dbMoabIds = executeReservation(DomHelper.TIER_TYPE.DB, id, passedinXml);
 
 			BasicDBObject rec = new BasicDBObject();
 			rec.put("project_id", id);
@@ -304,7 +304,7 @@ public class VPCResource extends ServerResource {
 	 * @param projectId - project's identification string
 	 * @return the MOAB id or 0 for failure
 	 */
-	private ArrayList executeReservation(DomHelper.TIER_TYPE type, org.w3c.dom.Document xml) {
+	private ArrayList executeReservation(DomHelper.TIER_TYPE type, String projectId, org.w3c.dom.Document xml) {
 		Document xmlDoc = null;
 		ArrayList ids = new ArrayList();
 		ArrayList< Callable<String> > tasks = new ArrayList< Callable<String> >();
@@ -315,7 +315,7 @@ public class VPCResource extends ServerResource {
 					try {
 						String id = "";
 						// TODO: Re-factor code off to async codelets
-						CreateVmBuilder vmBuilder = new CreateVmBuilder(new DomHelper(xml), type);
+						CreateVmBuilder vmBuilder = new CreateVmBuilder(new DomHelper(xml), projectId, type);
 						
 						// commandStrings - contains a list of command Strings for firing in MOAB
 						Vector<String> commandStrings = vmBuilder.getCommandStrings();

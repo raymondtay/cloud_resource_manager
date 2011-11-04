@@ -28,10 +28,12 @@ public class CreateVmBuilder {
 		private StringTemplate duration = new StringTemplate(" -d $duration$ ");
 		private DomHelper dom;
 		private DomHelper.TIER_TYPE tier;
+		private String projectId;
 
-		public CreateVmBuilder(DomHelper dom, DomHelper.TIER_TYPE tier) {
+		public CreateVmBuilder(DomHelper dom, String projectId, DomHelper.TIER_TYPE tier) {
 			this.dom = dom;
 			this.tier = tier;
+			this.projectId = projectId;
 		}
 
 		// its either i do this computation in the 
@@ -69,7 +71,7 @@ public class CreateVmBuilder {
 			StringBuilder disks = new StringBuilder();
 			StringBuilder apps = new StringBuilder();
 			for(Machine r : machines) {
-				hostname.setAttribute("hostname", r.getId());
+				hostname.setAttribute("hostname", projectId + r.getId());
 				cores.setAttribute("cores", r.getCores());
 				memory.setAttribute("memory", r.getMemory());
 				bootDisk.setAttribute("type", (bootD = getBootDiskType(r.getDisks())).getType());
