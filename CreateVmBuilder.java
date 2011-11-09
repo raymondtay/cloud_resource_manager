@@ -31,6 +31,7 @@ public class CreateVmBuilder {
 		private DomHelper.TIER_TYPE tier;
 		private String projectId;
 		private Format formatter;
+		private String hostId;
 
 		public CreateVmBuilder(DomHelper dom, String projectId, DomHelper.TIER_TYPE tier) {
 			this.dom = dom;
@@ -63,18 +64,23 @@ public class CreateVmBuilder {
 			duration.reset();
 		}
 
-		public Vector<String> getCommandStrings() {
+		public Vector< HashMap<String, String> > getCommandStrings() {
 			return buildCommandString(tier);
 		}
 
-		public Vector<String> buildCommandString(DomHelper.TIER_TYPE tier) {
+		/**
+		 * Returns a Map of key value pairs
+		 * @return - a map of key value pair where key = hostname, value = command line args
+		 */
+		public Vector< HashMap<String,String> > buildCommandString(DomHelper.TIER_TYPE tier) {
 			Vector<Machine> machines = dom.getMachineData(tier);
-			Vector<String> commandStrings = new Vector<String>();
+			Vector< HashMap<String, String> > commandStrings = new Vector< HashMap<String, String> >();
 			Disk bootD = null;
 			StringBuilder disks = new StringBuilder();
 			StringBuilder apps = new StringBuilder();
 			for(Machine r : machines) {
 				hostname.setAttribute("hostname", projectId + r.getId());
+				this.hostId = r.getId(); // sets the hostId for tagging this command string s.t. provisioning has a use for it
 				cores.setAttribute("cores", r.getCores());
 				memory.setAttribute("memory", r.getMemory());
 				bootDisk.setAttribute("type", (bootD = getBootDiskType(r.getDisks())).getType());
@@ -99,7 +105,9 @@ public class CreateVmBuilder {
 				String temp = apps.toString();
 				if (temp.length() > 0) // take into account no apps are installed during provisioning
 					app.setAttribute("app", temp.substring(0, temp.length()-1)); // this is sooooo like C programming...really clumsy
-				commandStrings.add(hostname.toString() + cores.toString() + memory.toString() + bootDisk.toString() + disks.toString() + os.toString() + app.toString() + zone.toString() + start.toString() + duration.toString());
+				HashMap<String, String> kvPair = new HashMap<String, String>();
+				kvPair.put(this.hostId, hostname.toString() + cores.toString() + memory.toString() + bootDisk.toString() + disks.toString() + os.toString() + app.toString() + zone.toString() + start.toString() + duration.toString());
+				commandStrings.add(kvPair);
 				reset();
 			}
 		return commandStrings;

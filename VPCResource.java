@@ -75,7 +75,7 @@ public class VPCResource extends ServerResource {
 			// get the XML file
 			DocumentBuilderFactory fac = DocumentBuilderFactory.newInstance();
 			DocumentBuilder builder = fac.newDocumentBuilder();
-			projectXml = builder.parse(new ByteArrayInputStream( ((String)project.get("config_file")).getBytes() ));
+			projectXml = builder.parse(new InputSource(new StringReader( (String)project.get("config_file") )));
 		} else {
 			// there's an error here likely, the client should know
 			// with a more descriptive message since we're in the
@@ -136,9 +136,10 @@ public class VPCResource extends ServerResource {
 			// VPC configuration
 			DocumentBuilderFactory fac = DocumentBuilderFactory.newInstance();
 			DocumentBuilder builder = fac.newDocumentBuilder();
+			DocumentBuilder builder2 = fac.newDocumentBuilder();
 
-			Document orgXml = builder.parse(new ByteArrayInputStream( ((String)project.get("config_file")).getBytes() ));
-			Document newXml = builder.parse(new ByteArrayInputStream( vpcconfig.getBytes() ));
+			Document orgXml = builder.parse( new InputSource(new StringReader( (String)project.get("config_file") )));
+			Document newXml = builder2.parse( new InputSource(new StringReader( vpcconfig )));
 
 			DetailedDiff diff = new DetailedDiff(new Diff( (String)project.get("config_file"), vpcconfig));
 			List<Difference> all = diff.getAllDifferences();
@@ -159,9 +160,6 @@ public class VPCResource extends ServerResource {
 			newRec.put("moab_db_rsrv_id",  project.get("moab_db_rsrv_id"));
 			col.update(project, newRec);
 	
-			// Determine what has changed in the XML configuration file
-			// Fire the right sequence of MOAB commands
-			// Update the database if applicable
 		} else {
 
 			// Fire the right squence of MOAB commands
@@ -176,9 +174,9 @@ public class VPCResource extends ServerResource {
 
 			// We'll fire the actual reservation here
 			// Update the database if applicable 
-			ArrayList webMoabIds = executeReservation(DomHelper.TIER_TYPE.WEB, id, passedinXml);
-			ArrayList appMoabIds = executeReservation(DomHelper.TIER_TYPE.APP, id, passedinXml);
-			ArrayList dbMoabIds = executeReservation(DomHelper.TIER_TYPE.DB, id, passedinXml);
+			ArrayList< HashMap<String,String> > webMoabIds = executeReservation(DomHelper.TIER_TYPE.WEB, id, passedinXml);
+			ArrayList< HashMap<String,String> > appMoabIds = executeReservation(DomHelper.TIER_TYPE.APP, id, passedinXml);
+			ArrayList< HashMap<String,String> > dbMoabIds = executeReservation(DomHelper.TIER_TYPE.DB, id, passedinXml);
 
 			BasicDBObject rec = new BasicDBObject();
 			rec.put("project_id", id);
@@ -304,10 +302,9 @@ public class VPCResource extends ServerResource {
 	 * @param projectId - project's identification string
 	 * @return the MOAB id or 0 for failure
 	 */
-	private ArrayList executeReservation(DomHelper.TIER_TYPE type, String projectId, org.w3c.dom.Document xml) {
+	private ArrayList< HashMap<String,String> > executeReservation(DomHelper.TIER_TYPE type, String projectId, org.w3c.dom.Document xml) {
 		Document xmlDoc = null;
-		ArrayList ids = new ArrayList();
-		ArrayList< Callable<String> > tasks = new ArrayList< Callable<String> >();
+		ArrayList< HashMap<String, String> > ids = new ArrayList< HashMap<String, String> >();
 		switch (type) {
 				case WEB:	
 				case APP:	
@@ -318,13 +315,19 @@ public class VPCResource extends ServerResource {
 						CreateVmBuilder vmBuilder = new CreateVmBuilder(new DomHelper(xml), projectId, type);
 						
 						// commandStrings - contains a list of command Strings for firing in MOAB
-						Vector<String> commandStrings = vmBuilder.getCommandStrings();
-						for( String args : commandStrings) {
-							tasks.add(new ProvisionVMTask(args));
-						}
-						List<Future> results = getApplication().getTaskService().invokeAll(tasks);
-						for( Future result : results ) {
-							ids.add( result.get(3, TimeUnit.MINUTES) );
+						Vector< HashMap<String, String> > commandStrings = vmBuilder.getCommandStrings();
+
+						// each member of the list is a k,v pair s.t. key = hostname, value = command line args
+						// passed to MOAB/HPOO.
+						for( HashMap<String, String> kvPair : commandStrings) {
+							Set<String> keys = kvPair.keySet();
+							for( String key : keys )  {
+								Future< Vector<String> > f = getApplication().getTaskService().submit(new ProvisionVMTask(key, kvPair.get(key)));
+								Vector<String> fkvPair = (Vector<String>) f.get(3, TimeUnit.MINUTES);
+								HashMap<String,String> map = new HashMap<String,String>();
+								map.put(fkvPair.get(0), fkvPair.get(1));
+								ids.add( map );
+							}
 						}
 					} catch (InterruptedException ie ) { ie.printStackTrace(); }
 					  catch (ExecutionException ee)    { ee.printStackTrace(); }
@@ -362,15 +365,17 @@ public class VPCResource extends ServerResource {
  * This task represents the call to the OO
  * via the "createvm.sh" script with accepting parameters
  */
-class ProvisionVMTask implements Callable<String>  {
+class ProvisionVMTask implements Callable< Vector<String> >  {
+	private String hostId;
 	private String args;
 	private String id;
-	protected ProvisionVMTask(String args) {
+	protected ProvisionVMTask(String hostId, String args) {
+		this.hostId = hostId;
 		this.args = args;
 		this.id = "";
 	}	
 	@Override
-	public String call() throws Exception {
+	public Vector<String> call() throws Exception {
 		ProcessBuilder pb = new ProcessBuilder("./createvm.sh", args);
 	
 		// we can put in any ENV variables we want the shell script to understand
@@ -381,7 +386,8 @@ class ProvisionVMTask implements Callable<String>  {
 		id = (new String(data)).trim(); // this trimming is necessary otherwise you'll get the "Content not allowed in trailing section."
 		DocumentBuilderFactory fac = DocumentBuilderFactory.newInstance();
 		DocumentBuilder builder = fac.newDocumentBuilder();
-		Document xmlDoc = builder.parse(new ByteArrayInputStream(id.getBytes()));  
+
+		Document xmlDoc = builder.parse(new InputSource(new StringReader(id)));  
 		XPath xpath = XPathFactory.newInstance().newXPath();
 		String status = (String) xpath.evaluate("//request/status/text()", xmlDoc, XPathConstants.STRING);
 		if ( status.equalsIgnoreCase("ok") ) 
@@ -389,8 +395,10 @@ class ProvisionVMTask implements Callable<String>  {
 		else id = "0"; 
 
 		proc.destroy();
-
-		return id;
+		Vector<String> v = new Vector<String>();
+		v.add(0,hostId);
+		v.add(1,id);
+		return v;
 	}
 }
 
