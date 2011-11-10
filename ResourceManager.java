@@ -27,6 +27,9 @@ public class ResourceManager extends Application {
 			router.attach("http://localhost:8111/vpc/{project_id}/request/", VPCResource.class);
 			router.attach("http://localhost:8111/vpc/{project_id}/config/", VPCResource.class);
 			router.attach("http://localhost:8111/vpc/{project_id}/status/", Diagnostic.class);
+			router.attach("http://localhost:8111/vpc/{project_id}/savedesign/", DesignServerResource.class);
+			router.attach("http://localhost:8111/vpc/{project_id}/loaddesign/", DesignServerResource.class);
+			router.attach("http://localhost:8111/vpc/{project_id}/activatedesign/", DesignServerResource.class);
 			return router;
 		}
 }
