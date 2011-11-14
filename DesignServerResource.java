@@ -63,7 +63,7 @@ public class DesignServerResource extends ServerResource {
 			project = (BasicDBObject) cursor.next();
 			BasicDBObject newRecord = new BasicDBObject();
 			newRecord.put("project_id", id);
-			newRecord.put("config_file", projectXml);
+			newRecord.put("config_file", vpcconfig);
 			col.update(project, newRecord);
 		} else {
 			project = new BasicDBObject();
